@@ -445,10 +445,11 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() {
         String js = "try{" +
-                "if(typeof handleBackForFiles==='function'&&handleBackForFiles()){} " +
-                "else if(document.body.classList.contains('focus-mode')){setFocusMode(false);} " +
-                "else{'exit'}" +
-                "}catch(e){'exit'}";
+                "if(typeof handleGlobalBack==='function'){handleGlobalBack() ? 'consumed' : 'exit';} " +
+                "else if(typeof handleBackForFiles==='function'&&handleBackForFiles()){'consumed';} " +
+                "else if(document.body.classList.contains('focus-mode')){setFocusMode(false);'consumed';} " +
+                "else{'exit'};" +
+                "}catch(e){'exit'};";
         webView.evaluateJavascript(js, new BackCallback());
     }
 

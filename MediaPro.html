@@ -1373,7 +1373,7 @@ body.sidebar-is-collapsed .side-handle{background:var(--accent-soft);color:var(-
       <div class="settings-row" id="updateSettingsRow">
         <div class="sr-label">
           <h4>التحديثات التلقائية (GitHub Releases)</h4>
-          <p id="updaterCurrentVer">الإصدار الحالي: v5.5.3</p>
+          <p id="updaterCurrentVer">الإصدار الحالي: v5.5.4</p>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <button class="btn btn-sm btn-outline" id="btnCheckUpdatesManually" style="font-size:12px;padding:6px 14px;border-radius:8px;border:1px solid var(--border-2);background:var(--panel-2);color:var(--text);cursor:pointer;">فحص التحديثات</button>
@@ -3288,6 +3288,21 @@ function toast(msg,type='info'){
   $('#toasts').appendChild(t);
   setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),260);},2800);
 }
+let globalOsdTimer=null;
+function showOsd(html,ms=850){
+  let osd=$('#globalOsd');
+  if(!osd){
+    osd=document.createElement('div');
+    osd.id='globalOsd';
+    osd.className='v-gesture-hud';
+    osd.style.cssText='position:fixed;top:28px;left:50%;transform:translateX(-50%);z-index:99999;';
+    document.body.appendChild(osd);
+  }
+  osd.innerHTML=html;
+  osd.classList.add('show');
+  clearTimeout(globalOsdTimer);
+  if(ms>0)globalOsdTimer=setTimeout(()=>osd.classList.remove('show'),ms);
+}
 
 /* THEMES */
 const THEMES_META = {
@@ -3887,8 +3902,15 @@ function renderVideo(item){
     }
   });
 
-  stage.addEventListener('click',e=>{if('ontouchstart' in window)return;if(e.target.closest('.video-error,button'))return;api.toggle();});
-  v.addEventListener('dblclick',()=>{if(!('ontouchstart' in window))toggleFullscreen();});
+  stage.addEventListener('click',e=>{
+    if(e.pointerType==='touch')return;
+    if(e.target.closest('.video-error,button,.filter-panel,.fp-item'))return;
+    api.toggle();
+  });
+  v.addEventListener('dblclick',e=>{
+    if(e.pointerType==='touch')return;
+    toggleFullscreen();
+  });
 
   const loopBtn=ctrl.querySelector('[data-loop]');
   const syncLoop=()=>loopBtn.classList.toggle('on',v.loop);
@@ -5234,12 +5256,34 @@ document.addEventListener('keydown',e=>{
   if(k==='/'){e.preventDefault();openFilesView();setTimeout(()=>{const si=$('#fsSearch');if(si)si.focus();},80);return;}
   if(k===','){e.preventDefault();openModal('settingsModal');return;}
   const media=currentVideo||(audioEl.src?audioEl:null);
-  if(k===' '||k==='k'){if(media&&media.src){e.preventDefault();media.paused?media.play().catch(()=>{}):media.pause();}return;}
-  if(k==='arrowright'&&media){e.preventDefault();media.currentTime+=5;return;}
-  if(k==='arrowleft'&&media){e.preventDefault();media.currentTime=Math.max(0,media.currentTime-5);return;}
-  if(k==='arrowup'&&media){e.preventDefault();media.volume=Math.min(1,media.volume+.08);return;}
-  if(k==='arrowdown'&&media){e.preventDefault();media.volume=Math.max(0,media.volume-.08);return;}
-  if(k==='m'&&media){media.muted=!media.muted;return;}
+  if(k===' '||k==='k'){
+    if(media&&media.src){
+      e.preventDefault();
+      if(media.paused){media.play().catch(()=>{});showOsd(`${icon('play')} <span>تشغيل</span>`,700);}
+      else{media.pause();showOsd(`${icon('pause')} <span>إيقاف مؤقت</span>`,700);}
+    }
+    return;
+  }
+  if(k==='arrowright'&&media){
+    e.preventDefault();media.currentTime=Math.min(media.duration||Infinity,media.currentTime+5);
+    showOsd(`${icon('fwd10')} <span>+5 ثوانٍ</span>`,700);return;
+  }
+  if(k==='arrowleft'&&media){
+    e.preventDefault();media.currentTime=Math.max(0,media.currentTime-5);
+    showOsd(`${icon('back10')} <span>-5 ثوانٍ</span>`,700);return;
+  }
+  if(k==='arrowup'&&media){
+    e.preventDefault();media.volume=Math.min(1,media.volume+.06);media.muted=false;
+    const pct=Math.round(media.volume*100);showOsd(`${icon('volume')} <span>الصوت ${pct}%</span>`,700);return;
+  }
+  if(k==='arrowdown'&&media){
+    e.preventDefault();media.volume=Math.max(0,media.volume-.06);
+    const pct=Math.round(media.volume*100);showOsd(`${icon(pct===0?'mute':'volume')} <span>الصوت ${pct}%</span>`,700);return;
+  }
+  if(k==='m'&&media){
+    media.muted=!media.muted;
+    showOsd(`${icon(media.muted?'mute':'volume')} <span>${media.muted?'كتم الصوت':'تشغيل الصوت'}</span>`,700);return;
+  }
   if(k==='f'){e.preventDefault();toggleFullscreen();return;}
   if(k==='r'&&currentVideo){currentVideo.loop=!currentVideo.loop;toast(currentVideo.loop?'تكرار مفعّل':'تكرار متوقف');return;}
   if(k==='n'||k==='p'){playNextMedia(k==='n'?1:-1);}
@@ -5255,7 +5299,9 @@ window.addEventListener('drop',e=>{e.preventDefault();dragDepth=0;dropOverlay.cl
 
 /* ================= FILES BROWSER (متصفح ملفات الجهاز) ================= */
 const FS_BRIDGE=(()=>{try{return window.MediaProFS&&typeof window.MediaProFS.list==='function'?window.MediaProFS:null;}catch(e){return null;}})();
-const fsState={cwd:null,roots:[],clip:null,entries:[],q:'',sort:'name_asc',view:'grid',selMode:false,sel:new Set(),hist:[],hi:-1,deep:null};
+let savedFsView='grid',savedFsSort='name_asc';
+try{savedFsView=localStorage.getItem('mp_fs_view')||'grid';savedFsSort=localStorage.getItem('mp_fs_sort')||'name_asc';}catch(e){}
+const fsState={cwd:null,roots:[],clip:null,entries:[],q:'',sort:savedFsSort,view:savedFsView,selMode:false,sel:new Set(),hist:[],hi:-1,deep:null};
 function fsParse(r){const o=typeof r==='string'?JSON.parse(r):r;if(!o||!o.ok)throw new Error((o&&o.error)||'خطأ غير متوقع');return o;}
 function fsMime(n){const e=getExt(n);const m={pdf:'application/pdf',mp4:'video/mp4',webm:'video/webm',mkv:'video/x-matroska',mp3:'audio/mpeg',wav:'audio/wav',ogg:'audio/ogg',flac:'audio/flac',png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',gif:'image/gif',txt:'text/plain',html:'text/html',json:'application/json'};return m[e]||'';}
 function fsIsRoot(p){return fsState.roots.some(r=>r.path===p);}
@@ -5581,18 +5627,68 @@ function fsPaste(){
   toast(`تم لصق ${done} عنصر${fail?` — فشل ${fail}`:''}`,fail?'error':'success');
   if(fsState.cwd)fsGo(fsState.cwd);
 }
+let lastBackPressTime = 0;
+function handleGlobalBack(){
+  const openModal = document.querySelector('.modal-backdrop.show');
+  if(openModal){
+    closeModal(openModal.id);
+    return true;
+  }
+  const cmdk = $('#cmdk');
+  if(cmdk && cmdk.classList.contains('show')){
+    closeCmdk();
+    return true;
+  }
+  const fv = $('#filesView');
+  if(fv && fv.classList.contains('show')){
+    const fops = $('#fileOpsModal');
+    if(fops && fops.classList.contains('show')){
+      closeModal('fileOpsModal');
+      return true;
+    }
+    if(fsState.selMode){
+      fsSetSelMode(false);
+      return true;
+    }
+    if(fsState.cwd && !fsIsRoot(fsState.cwd)){
+      fsGo(fsParent(fsState.cwd));
+      return true;
+    }
+    if(fsState.cwd){
+      fsRenderRoots();
+      return true;
+    }
+    closeFilesView();
+    return true;
+  }
+  const sb = $('#sidebar');
+  if(sb && sb.classList.contains('open')){
+    closeSidebar();
+    return true;
+  }
+  if(document.fullscreenElement){
+    document.exitFullscreen().catch(()=>{});
+    return true;
+  }
+  if(document.body.classList.contains('focus-mode')){
+    setFocusMode(false);
+    return true;
+  }
+  const now = Date.now();
+  if(now - lastBackPressTime < 2000){
+    return false;
+  }
+  lastBackPressTime = now;
+  toast('اضغط مرة أخرى للخروج من التطبيق', 'info');
+  return true;
+}
 function handleBackForFiles(){
-  const v=$('#filesView');
-  if(!v||!v.classList.contains('show'))return false;
-  if($('#fileOpsModal').classList.contains('show')){closeModal('fileOpsModal');return true;}
-  if(fsState.cwd&&!fsIsRoot(fsState.cwd)){fsGo(fsParent(fsState.cwd));return true;}
-  if(fsState.cwd){fsRenderRoots();return true;}
-  closeFilesView();return true;
+  return handleGlobalBack();
 }
 let fsGridDelegated=false;
 function wireFsItems(){
   if(fsGridDelegated)return;
-  const grid=#filesGrid;
+  const grid=$('#filesGrid');
   if(!grid)return;
   fsGridDelegated=true;
   let lpTimer=null,lpFired=false;
@@ -5922,7 +6018,7 @@ async function init(){
     <div class="modal-body" style="padding:16px 20px;">
       <div id="updateModalBadge" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:600;margin-bottom:12px;">
         <span style="width:7px;height:7px;border-radius:50%;background:var(--accent);"></span>
-        <span id="updateModalVersion">v5.5.3</span>
+        <span id="updateModalVersion">v5.5.4</span>
       </div>
       <p id="updateModalDate" style="font-size:12px;color:var(--muted);margin-bottom:12px;"></p>
       <div id="updateModalChangelog" style="background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:160px;overflow-y:auto;font-size:13px;color:var(--text-2);line-height:1.6;margin-bottom:16px;white-space:pre-wrap;"></div>
@@ -5967,7 +6063,7 @@ async function init(){
  *  MediaProUpdater — In-App Self-Updating Engine (Windows, Android, Web)
  * ========================================================================= */
 window.MediaProUpdater = (function() {
-  const CURRENT_VERSION = '5.5.3';
+  const CURRENT_VERSION = '5.5.4';
   const GITHUB_REPO = 'yalaahamdy/MediaPro';
   const GITHUB_API = 'https://api.github.com/repos/' + GITHUB_REPO + '/releases/latest';
   let latestRelease = null;
