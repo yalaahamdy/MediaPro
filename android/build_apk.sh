@@ -43,7 +43,6 @@ echo "[3/7] Linking Resources..."
     -I "$PLAT" \
     --manifest "$SCRIPT_DIR/AndroidManifest.xml" \
     -R "$WORK/res.zip" \
-    -A "$SCRIPT_DIR/assets" \
     --java "$GEN" \
     --auto-add-overlay
 
@@ -61,12 +60,9 @@ R8="$SCRIPT_DIR/r8.jar"
 java -cp "$R8" com.android.tools.r8.D8 --release --min-api 24 --lib "$PLAT" --output "$DEX" @"$WORK/classes.txt"
 
 echo "[6/7] Packaging & Aligning..."
-cp "$WORK/app.unaligned.apk" "$WORK/app.withdex.apk"
-cd "$DEX"
-jar uf "$WORK/app.withdex.apk" classes.dex
-cd "$SCRIPT_DIR"
+python3 "$SCRIPT_DIR/package_apk.py" "$WORK/app.unaligned.apk" "$DEX/classes.dex" "$SCRIPT_DIR/../MediaPro.html" "$WORK/app.packaged.apk"
 
-"$BT/zipalign" -f -p 4 "$WORK/app.withdex.apk" "$WORK/app.aligned.apk"
+"$BT/zipalign" -f -p 4 "$WORK/app.packaged.apk" "$WORK/app.aligned.apk"
 
 echo "[7/7] Signing..."
 KEYSTORE="$SCRIPT_DIR/mediapro.keystore"

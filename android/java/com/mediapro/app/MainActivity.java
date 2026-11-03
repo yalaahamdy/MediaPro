@@ -17,6 +17,9 @@ import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -26,6 +29,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -84,6 +88,89 @@ public class MainActivity extends Activity {
             startActivityForResult(Intent.createChooser(intent, "اختر ملفاً"), FILE_CHOOSER_REQ);
             return true;
         }
+    }
+
+    private class MediaWebViewClient extends WebViewClient {
+        @Override
+        public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+            if (request != null && request.getUrl() != null) {
+                Uri uri = request.getUrl();
+                String path = uri.getPath();
+                if (path != null && (path.endsWith("MediaPro.html") || path.contains("www/MediaPro.html") || path.contains("www\\MediaPro.html"))) {
+                    try {
+                        InputStream is = getAssets().open("www/MediaPro.html");
+                        return new WebResourceResponse("text/html", "UTF-8", is);
+                    } catch (Exception e1) {
+                        try {
+                            InputStream is = getAssets().open("www\\MediaPro.html");
+                            return new WebResourceResponse("text/html", "UTF-8", is);
+                        } catch (Exception e2) {
+                            try {
+                                InputStream is = getAssets().open("MediaPro.html");
+                                return new WebResourceResponse("text/html", "UTF-8", is);
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                }
+            }
+            return super.shouldInterceptRequest(view, request);
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
+            if (url != null && (url.endsWith("MediaPro.html") || url.contains("www/MediaPro.html") || url.contains("www\\MediaPro.html"))) {
+                try {
+                    InputStream is = getAssets().open("www/MediaPro.html");
+                    return new WebResourceResponse("text/html", "UTF-8", is);
+                } catch (Exception e1) {
+                    try {
+                        InputStream is = getAssets().open("www\\MediaPro.html");
+                        return new WebResourceResponse("text/html", "UTF-8", is);
+                    } catch (Exception e2) {
+                        try {
+                            InputStream is = getAssets().open("MediaPro.html");
+                            return new WebResourceResponse("text/html", "UTF-8", is);
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+            return super.shouldInterceptRequest(view, url);
+        }
+
+        @Override
+        public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+            handleLoadFallback(view);
+        }
+
+        @Override
+        public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+            if (request != null && request.isForMainFrame()) {
+                handleLoadFallback(view);
+            }
+        }
+    }
+
+    private void handleLoadFallback(WebView view) {
+        try {
+            InputStream is = null;
+            try { is = getAssets().open("www/MediaPro.html"); }
+            catch (Exception e) {
+                try { is = getAssets().open("www\\MediaPro.html"); }
+                catch (Exception e2) {
+                    try { is = getAssets().open("MediaPro.html"); } catch (Exception ignored) {}
+                }
+            }
+            if (is != null) {
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                byte[] buf = new byte[8192];
+                int len;
+                while ((len = is.read(buf)) > 0) baos.write(buf, 0, len);
+                is.close();
+                String html = baos.toString("UTF-8");
+                view.loadDataWithBaseURL("file:///android_asset/www/", html, "text/html", "UTF-8", null);
+            }
+        } catch (Exception ignored) {}
     }
 
     private class ToastRunnable implements Runnable {
@@ -237,11 +324,12 @@ public class MainActivity extends Activity {
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         settings.setAllowFileAccess(true);
+        settings.setAllowContentAccess(true);
         settings.setAllowFileAccessFromFileURLs(true);
         settings.setAllowUniversalAccessFromFileURLs(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
 
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new MediaWebViewClient());
         webView.setWebChromeClient(new MediaChromeClient());
 
         webView.addJavascriptInterface(new Bridge(), "MediaProBridge");

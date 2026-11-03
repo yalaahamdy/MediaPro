@@ -55,7 +55,6 @@ echo [3/7] Linking Resources (aapt2 link)...
     -I "%PLAT%" ^
     --manifest "%APP_DIR%AndroidManifest.xml" ^
     -R "%WORK%\res.zip" ^
-    -A "%APP_DIR%assets" ^
     --java "%GEN%" ^
     --auto-add-overlay
 if %errorlevel% neq 0 ( echo AAPT2 link failed & exit /b 1 )
@@ -77,13 +76,11 @@ dir /s /b "%CLASSES%\*.class" > "%WORK%\classes.txt"
 java -cp "%ROOT%r8.jar" com.android.tools.r8.D8 --release --min-api 24 --lib "%PLAT%" --output "%DEX%" @"%WORK%\classes.txt"
 if %errorlevel% neq 0 ( echo D8 dexing failed & exit /b 1 )
 
-echo [6/7] Packaging APK...
-copy "%WORK%\app.unaligned.apk" "%WORK%\app.withdex.apk" >nul
-cd /d "%DEX%"
-jar uf "%WORK%\app.withdex.apk" classes.dex
-cd /d "%ROOT%"
+echo [6/7] Packaging APK (with uncompressed assets ^& strict forward slashes)...
+python "%ROOT%package_apk.py" "%WORK%\app.unaligned.apk" "%DEX%\classes.dex" "%ROOT%..\MediaPro.html" "%WORK%\app.packaged.apk"
+if %errorlevel% neq 0 ( echo Packaging failed & exit /b 1 )
 
-"%BT%\zipalign.exe" -f -p 4 "%WORK%\app.withdex.apk" "%WORK%\app.aligned.apk"
+"%BT%\zipalign.exe" -f -p 4 "%WORK%\app.packaged.apk" "%WORK%\app.aligned.apk"
 if %errorlevel% neq 0 ( echo Zipalign failed & exit /b 1 )
 
 echo [7/7] Signing APK...
