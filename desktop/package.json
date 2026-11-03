@@ -1,0 +1,35 @@
+{
+  "name": "mediapro",
+  "productName": "MediaPro",
+  "version": "5.5.0",
+  "description": "MediaPro - Media Player + Professional File Manager with Auto-Update",
+  "main": "main.js",
+  "author": "MediaPro",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.mediapro.desktop",
+    "productName": "MediaPro",
+    "win": {
+      "target": "portable",
+      "icon": "icon.png"
+    },
+    "portable": {
+      "artifactName": "MediaPro-Windows-Portable.exe"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "icon.png",
+      "package.json",
+      "app/**/*"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}

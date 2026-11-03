@@ -1,0 +1,108 @@
+name: Build and Release MediaPro
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android Build-Tools & Platform
+        run: |
+          sdkmanager "platforms;android-34" "build-tools;33.0.1"
+
+      - name: Build Android APK
+        run: |
+          chmod +x android/build_apk.sh
+          ./android/build_apk.sh
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MediaPro-Android-APK
+          path: MediaPro.apk
+
+  build-desktop:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Prepare Desktop App
+        run: |
+          mkdir desktop\app -Force
+          copy MediaPro.html desktop\app\MediaPro.html
+          cd desktop
+          npm install
+
+      - name: Build Windows Portable
+        run: |
+          cd desktop
+          npx electron-builder --win portable
+
+      - name: Copy Built Executable
+        run: |
+          copy desktop\dist\MediaPro-Windows-Portable.exe MediaPro-Windows-Portable.exe
+
+      - name: Upload Windows Portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: MediaPro-Windows-Portable
+          path: MediaPro-Windows-Portable.exe
+
+  publish-release:
+    needs: [build-android, build-desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download Android Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MediaPro-Android-APK
+          path: ./release-assets
+
+      - name: Download Windows Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MediaPro-Windows-Portable
+          path: ./release-assets
+
+      - name: Copy MediaPro.html to Release Assets
+        run: |
+          cp MediaPro.html ./release-assets/MediaPro.html
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ./release-assets/MediaPro.apk
+            ./release-assets/MediaPro-Windows-Portable.exe
+            ./release-assets/MediaPro.html
+          generate_release_notes: true
+          draft: false
+          prerelease: false

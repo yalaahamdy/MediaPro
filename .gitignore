@@ -1,0 +1,26 @@
+# Node / Electron
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+desktop/dist/
+desktop/app/
+
+# Android Build
+android/build/
+android/assets/
+android/*.jar
+*.keystore
+
+# Temporary and staging files (root only)
+/desktop-stage/
+/electron-src/
+/resources/
+/classes.dex
+/AndroidManifest.xml
+/res/
+*.idsig
+*.bak
+*.tmp
+.DS_Store
+Thumbs.db
