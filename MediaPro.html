@@ -1373,7 +1373,7 @@ body.sidebar-is-collapsed .side-handle{background:var(--accent-soft);color:var(-
       <div class="settings-row" id="updateSettingsRow">
         <div class="sr-label">
           <h4>التحديثات التلقائية (GitHub Releases)</h4>
-          <p id="updaterCurrentVer">الإصدار الحالي: v5.5.1</p>
+          <p id="updaterCurrentVer">الإصدار الحالي: v5.5.2</p>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <button class="btn btn-sm btn-outline" id="btnCheckUpdatesManually" style="font-size:12px;padding:6px 14px;border-radius:8px;border:1px solid var(--border-2);background:var(--panel-2);color:var(--text);cursor:pointer;">فحص التحديثات</button>
@@ -3011,7 +3011,7 @@ async function getItemBuf(item){
   try{
     if(item._devPath&&window.MediaProFS&&window.MediaProFS.readFileBase64){
       const r=JSON.parse(window.MediaProFS.readFileBase64(item._devPath));
-      if(r&&r.ok){const bin=atob(r.b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);const f=new File([u],item.name);item.file=f;return f;}
+      if(r&&r.ok){const b64=r.b64||r.data;if(b64){const bin=atob(b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);const f=new File([u],item.name);item.file=f;return f;}}
     }
   }catch(e){}
   const res=await fetch(item.url);const b=await res.blob();const f=new File([b],item.name);item.file=f;return f;
@@ -3636,7 +3636,7 @@ function renderViewer(item){
 }
 function cleanupViewer(stopAudio=false){
   if(currentVideo){try{currentVideo.pause();currentVideo.removeAttribute('src');currentVideo.load();}catch(e){}currentVideo=null;}
-  if(stopAudio){try{audioEl.pause();audioEl.removeAttribute('src');audioEl.load();}catch(e){}bgAudioItem=null;}
+  if(stopAudio){try{audioEl.pause();audioEl.removeAttribute('src');audioEl.load();if(audioCtx&&audioCtx.state==='running')audioCtx.suspend();}catch(e){}bgAudioItem=null;}
   if(vizRAF){cancelAnimationFrame(vizRAF);vizRAF=null;}
   if(pdfTask){try{pdfTask.destroy();}catch(e){}pdfTask=null;}
   currentPdf=null;imgState={scale:1,x:0,y:0,rot:0};releaseWakeLock();
@@ -5507,7 +5507,9 @@ function fsAddDeviceItem(e){
 }
 async function fsOpenAsFile(e){
   const r=fsParse(FS_BRIDGE.readFileBase64(e.p));
-  const bin=atob(r.b64);const u=new Uint8Array(bin.length);
+  const b64=r.b64||r.data;
+  if(!b64) throw new Error(r.error||'تعذر قراءة بيانات الملف');
+  const bin=atob(b64);const u=new Uint8Array(bin.length);
   for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
   const f=new File([u],e.n,{type:fsMime(e.n)});
   closeFilesView();
@@ -5888,7 +5890,7 @@ init();
     <div class="modal-body" style="padding:16px 20px;">
       <div id="updateModalBadge" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:600;margin-bottom:12px;">
         <span style="width:7px;height:7px;border-radius:50%;background:var(--accent);"></span>
-        <span id="updateModalVersion">v5.5.1</span>
+        <span id="updateModalVersion">v5.5.2</span>
       </div>
       <p id="updateModalDate" style="font-size:12px;color:var(--muted);margin-bottom:12px;"></p>
       <div id="updateModalChangelog" style="background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:160px;overflow-y:auto;font-size:13px;color:var(--text-2);line-height:1.6;margin-bottom:16px;white-space:pre-wrap;"></div>
@@ -5933,7 +5935,7 @@ init();
  *  MediaProUpdater — In-App Self-Updating Engine (Windows, Android, Web)
  * ========================================================================= */
 window.MediaProUpdater = (function() {
-  const CURRENT_VERSION = '5.5.1';
+  const CURRENT_VERSION = '5.5.2';
   const GITHUB_REPO = 'yalaahamdy/MediaPro';
   const GITHUB_API = 'https://api.github.com/repos/' + GITHUB_REPO + '/releases/latest';
   let latestRelease = null;

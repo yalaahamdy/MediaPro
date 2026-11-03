@@ -139,6 +139,35 @@ public class MainActivity extends Activity {
         }
 
         @Override
+        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+            if (request != null && request.getUrl() != null) {
+                return handleExternalUrl(request.getUrl());
+            }
+            return false;
+        }
+
+        @Override
+        @SuppressWarnings("deprecation")
+        public boolean shouldOverrideUrlLoading(WebView view, String url) {
+            if (url != null) {
+                return handleExternalUrl(Uri.parse(url));
+            }
+            return false;
+        }
+
+        private boolean handleExternalUrl(Uri uri) {
+            String scheme = uri.getScheme();
+            if (scheme != null && (scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https") || scheme.equalsIgnoreCase("mailto") || scheme.equalsIgnoreCase("tel"))) {
+                try {
+                    Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+                    startActivity(intent);
+                    return true;
+                } catch (Exception ignored) {}
+            }
+            return false;
+        }
+
+        @Override
         public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
             handleLoadFallback(view);
         }
@@ -618,8 +647,22 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String readFileBase64(String path) {
             try {
+                if (path == null || path.trim().isEmpty()) {
+                    return "{\"ok\":false,\"error\":\"مسار غير صالح\"}";
+                }
                 File f = new File(path);
-                byte[] bytes = new byte[(int) f.length()];
+                if (!f.exists() || !f.isFile()) {
+                    return "{\"ok\":false,\"error\":\"الملف غير موجود\"}";
+                }
+                long len = f.length();
+                if (len > 35 * 1024 * 1024) {
+                    JSONObject res = new JSONObject();
+                    res.put("ok", false);
+                    res.put("tooLarge", true);
+                    res.put("error", "الملف كبير جداً للقراءة كـ Base64 (أكبر من 35 ميجابايت). يتم تشغيله مباشرة عبر مسار الملف.");
+                    return res.toString();
+                }
+                byte[] bytes = new byte[(int) len];
                 FileInputStream fis = new FileInputStream(f);
                 int offset = 0;
                 while (offset < bytes.length) {
@@ -628,10 +671,16 @@ public class MainActivity extends Activity {
                     offset += r;
                 }
                 fis.close();
+                String b64 = Base64.encodeToString(bytes, Base64.NO_WRAP);
                 JSONObject res = new JSONObject();
                 res.put("ok", true);
-                res.put("data", Base64.encodeToString(bytes, Base64.NO_WRAP));
+                res.put("b64", b64);
+                res.put("data", b64);
+                res.put("size", len);
                 return res.toString();
+            } catch (OutOfMemoryError oom) {
+                System.gc();
+                return "{\"ok\":false,\"error\":\"ذاكرة الجهاز غير كافية لقراءة هذا الملف كـ Base64\"}";
             } catch (Exception e) {
                 return err(e);
             }
@@ -640,6 +689,9 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String writeFileBase64(String path, String base64Data) {
             try {
+                if (path == null || base64Data == null) {
+                    return "{\"ok\":false,\"error\":\"مدخلات غير صالحة\"}";
+                }
                 byte[] bytes = Base64.decode(base64Data, Base64.DEFAULT);
                 File target = new File(path);
                 File parent = target.getParentFile();
@@ -652,6 +704,9 @@ public class MainActivity extends Activity {
                 res.put("ok", true);
                 res.put("bytes", bytes.length);
                 return res.toString();
+            } catch (OutOfMemoryError oom) {
+                System.gc();
+                return "{\"ok\":false,\"error\":\"نفدت الذاكرة أثناء فك تشفير البيانات للكتابة\"}";
             } catch (Exception e) {
                 return err(e);
             }

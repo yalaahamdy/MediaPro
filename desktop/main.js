@@ -109,7 +109,8 @@ const SYNC_OPS = {
     const p = norm(a.p);
     const st = fs.statSync(p);
     if (st.size > 250 * 1024 * 1024) throw new Error('الملف أكبر من 250 ميجابايت');
-    return { ok: true, b64: fs.readFileSync(p).toString('base64') };
+    const b64 = fs.readFileSync(p).toString('base64');
+    return { ok: true, b64, data: b64 };
   },
   mkdir(a) { fs.mkdirSync(norm(a.p), { recursive: false }); return { ok: true }; },
   rename(a) {
@@ -146,6 +147,32 @@ ipcMain.on('mpfs-sync', (ev, payload) => {
   try { out = SYNC_OPS[op] ? SYNC_OPS[op](a || {}) : { ok: false, error: 'عملية غير معروفة: ' + op }; }
   catch (e) { out = { ok: false, error: (e && e.message) || String(e) }; }
   ev.returnValue = out;
+});
+
+ipcMain.handle('mpfs-async-list', async (ev, a) => {
+  try {
+    const p = norm(a.p);
+    const items = await fs.promises.readdir(p, { withFileTypes: true });
+    const entries = [];
+    const base = baseOf(p);
+    for (const it of items) {
+      let d = it.isDirectory(), s = 0, m = 0;
+      try { const st = await fs.promises.stat(base + '/' + it.name); d = st.isDirectory(); s = st.size; m = st.mtimeMs; } catch (e) {}
+      entries.push({ n: it.name, p: base + '/' + it.name, d, s, m });
+    }
+    return { ok: true, path: p, entries };
+  } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+});
+
+ipcMain.handle('mpfs-async-read', async (ev, a) => {
+  try {
+    const p = norm(a.p);
+    const st = await fs.promises.stat(p);
+    if (st.size > 250 * 1024 * 1024) throw new Error('الملف أكبر من 250 ميجابايت');
+    const buf = await fs.promises.readFile(p);
+    const b64 = buf.toString('base64');
+    return { ok: true, b64, data: b64 };
+  } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
 });
 
 /* ---------------- async ops (desktop pro features) ---------------- */
