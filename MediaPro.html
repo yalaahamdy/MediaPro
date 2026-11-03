@@ -1373,7 +1373,7 @@ body.sidebar-is-collapsed .side-handle{background:var(--accent-soft);color:var(-
       <div class="settings-row" id="updateSettingsRow">
         <div class="sr-label">
           <h4>التحديثات التلقائية (GitHub Releases)</h4>
-          <p id="updaterCurrentVer">الإصدار الحالي: v5.5.2</p>
+          <p id="updaterCurrentVer">الإصدار الحالي: v5.5.3</p>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <button class="btn btn-sm btn-outline" id="btnCheckUpdatesManually" style="font-size:12px;padding:6px 14px;border-radius:8px;border:1px solid var(--border-2);background:var(--panel-2);color:var(--text);cursor:pointer;">فحص التحديثات</button>
@@ -5589,22 +5589,46 @@ function handleBackForFiles(){
   if(fsState.cwd){fsRenderRoots();return true;}
   closeFilesView();return true;
 }
+let fsGridDelegated=false;
 function wireFsItems(){
-  $$('#filesGrid .fitem').forEach(el=>{
-    let lpTimer=null,lpFired=false;
+  if(fsGridDelegated)return;
+  const grid=#filesGrid;
+  if(!grid)return;
+  fsGridDelegated=true;
+  let lpTimer=null,lpFired=false;
+  const getEntry=(el)=>{
+    if(!el)return null;
+    const p=el.dataset.path;
+    return fsState.entries.find(x=>x.p===p)||fsState.roots.find(x=>x.path===p);
+  };
+  grid.addEventListener('click',ev=>{
+    if(lpFired){lpFired=false;return;}
+    const el=ev.target.closest('.fitem');
+    if(!el||!grid.contains(el))return;
     const elPath=el.dataset.path;
-    const entry=()=>fsState.entries.find(x=>x.p===elPath)||fsState.roots.find(x=>x.path===elPath);
-    el.addEventListener('click',()=>{
-      if(lpFired){lpFired=false;return;}
-      if(fsState.selMode){fsToggleSel(elPath);return;}
-      const e=entry();if(e)fsOpenEntry(e);
-    });
-    el.addEventListener('touchstart',()=>{
-      lpFired=false;
-      lpTimer=setTimeout(()=>{lpFired=true;const e=entry();if(e)fsOps(e);},550);
-    },{passive:true});
-    ['touchend','touchmove','touchcancel'].forEach(t=>el.addEventListener(t,()=>{clearTimeout(lpTimer);},{passive:true}));
-    el.addEventListener('contextmenu',ev=>{ev.preventDefault();const e=entry();if(e)fsOps(e);});
+    if(!elPath)return;
+    if(fsState.selMode){fsToggleSel(elPath);return;}
+    const e=getEntry(el);if(e)fsOpenEntry(e);
+  });
+  grid.addEventListener('touchstart',ev=>{
+    const el=ev.target.closest('.fitem');
+    if(!el||!grid.contains(el))return;
+    lpFired=false;
+    clearTimeout(lpTimer);
+    lpTimer=setTimeout(()=>{
+      lpFired=true;
+      const e=getEntry(el);if(e)fsOps(e);
+    },550);
+  },{passive:true});
+  const cancelLp=()=>{clearTimeout(lpTimer);};
+  grid.addEventListener('touchend',cancelLp,{passive:true});
+  grid.addEventListener('touchmove',cancelLp,{passive:true});
+  grid.addEventListener('touchcancel',cancelLp,{passive:true});
+  grid.addEventListener('contextmenu',ev=>{
+    const el=ev.target.closest('.fitem');
+    if(!el||!grid.contains(el))return;
+    ev.preventDefault();
+    const e=getEntry(el);if(e)fsOps(e);
   });
 }
 /* —— إضافات سطح المكتب: سجل التنقل، الوصول السريع، بحث عميق، خصائص —— */
@@ -5876,7 +5900,15 @@ async function init(){
     lastTouch=now;
   },{passive:false});
 }
-init();
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (vizRAF) {
+        cancelAnimationFrame(vizRAF);
+        vizRAF = null;
+      }
+    }
+  });
+  init();
 </script>
 
 <!-- UPDATE MODAL -->
@@ -5890,7 +5922,7 @@ init();
     <div class="modal-body" style="padding:16px 20px;">
       <div id="updateModalBadge" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:600;margin-bottom:12px;">
         <span style="width:7px;height:7px;border-radius:50%;background:var(--accent);"></span>
-        <span id="updateModalVersion">v5.5.2</span>
+        <span id="updateModalVersion">v5.5.3</span>
       </div>
       <p id="updateModalDate" style="font-size:12px;color:var(--muted);margin-bottom:12px;"></p>
       <div id="updateModalChangelog" style="background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:160px;overflow-y:auto;font-size:13px;color:var(--text-2);line-height:1.6;margin-bottom:16px;white-space:pre-wrap;"></div>
@@ -5935,7 +5967,7 @@ init();
  *  MediaProUpdater — In-App Self-Updating Engine (Windows, Android, Web)
  * ========================================================================= */
 window.MediaProUpdater = (function() {
-  const CURRENT_VERSION = '5.5.2';
+  const CURRENT_VERSION = '5.5.3';
   const GITHUB_REPO = 'yalaahamdy/MediaPro';
   const GITHUB_API = 'https://api.github.com/repos/' + GITHUB_REPO + '/releases/latest';
   let latestRelease = null;

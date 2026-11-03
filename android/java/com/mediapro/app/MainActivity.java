@@ -366,7 +366,11 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new UpdaterBridge(), "MediaProNativeUpdater");
 
         requestStorageIfNeeded();
-        webView.loadUrl("file:///android_asset/www/MediaPro.html");
+        if (savedInstanceState == null) {
+            webView.loadUrl("file:///android_asset/www/MediaPro.html");
+        } else {
+            webView.restoreState(savedInstanceState);
+        }
     }
 
     private void requestStorageIfNeeded() {
@@ -414,6 +418,22 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         notifyFsState();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (webView != null) {
+            webView.saveState(outState);
+        }
+    }
+
+    @Override
+    protected void onRestoreInstanceState(Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+        if (webView != null && savedInstanceState != null) {
+            webView.restoreState(savedInstanceState);
+        }
     }
 
     private void notifyFsState() {

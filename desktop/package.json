@@ -1,7 +1,7 @@
 {
   "name": "mediapro",
   "productName": "MediaPro",
-  "version": "5.5.2",
+  "version": "5.5.3",
   "description": "MediaPro - Media Player + Professional File Manager with Auto-Update",
   "main": "main.js",
   "author": "MediaPro",

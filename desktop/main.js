@@ -351,7 +351,11 @@ ipcMain.handle('mpfs-write', (ev, a) => {
 ipcMain.handle('mpfs-terminal', (ev, a) => {
   try {
     const d = norm(a.p);
-    spawn('cmd.exe', ['/k', 'cd /d', d], { cwd: d, detached: true, stdio: 'ignore' }).unref();
+    if (!fs.existsSync(d) || !fs.statSync(d).isDirectory()) {
+      return { ok: false, error: 'المجلد المحدد غير موجود' };
+    }
+    // Launch cmd safely in folder without command string concatenation
+    spawn('cmd.exe', ['/k', 'title MediaPro Workspace'], { cwd: d, detached: true, stdio: 'ignore' }).unref();
     return { ok: true };
   } catch (e) { return { ok: false, error: e.message }; }
 });
